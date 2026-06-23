@@ -2961,6 +2961,61 @@ local ParryThreshold = 1
 local Previous_Positions = {}
 local parryCooldown = 0.0
 local lastParryTime = 0
+
+local HighPingCompensationEnabled = true
+local HighPingProtectionEnabled = true
+local HighPingCompThreshold = 150
+local HighPingProtThreshold = 130
+local PingHistory = {}
+local MaxPingHistory = 5
+local PingAvg = 0
+
+do
+        local StatsService = game:GetService("Stats")
+
+        local function GetRawPing()
+                local ok, val = pcall(function()
+                        return StatsService.Network.ServerStatsItem["Data Ping"]:GetValue()
+                end)
+                if ok and type(val) == "number" then
+                        return val
+                end
+                return 0
+        end
+
+        local function UpdatePingHistory()
+                local raw = GetRawPing()
+                table.insert(PingHistory, raw)
+                if #PingHistory > MaxPingHistory then
+                        table.remove(PingHistory, 1)
+                end
+                local sum = 0
+                for _, p in ipairs(PingHistory) do
+                        sum = sum + p
+                end
+                PingAvg = (#PingHistory > 0) and (sum / #PingHistory) or raw
+                return PingAvg
+        end
+
+        local function GetAveragePing()
+                if #PingHistory == 0 then
+                        return GetRawPing()
+                end
+                return PingAvg
+        end
+
+        getgenv()._ZX_Tune = {
+                GetAveragePing = GetAveragePing,
+        }
+
+        task.spawn(function()
+                while true do
+                        UpdatePingHistory()
+                        task.wait(1)
+                end
+        end)
+end
+
 if not LPH_OBFUSCATED then
         function LPH_JIT(Function)
                 return Function
@@ -3982,10 +4037,17 @@ do
                                                 local Ball_Target = Ball:GetAttribute("target")
                                                 local One_Target = One_Ball:GetAttribute("target")
                                                 local Velocity = Zoomies.VectorVelocity
-                                                local Distance = (Player.Character.PrimaryPart.Position - Ball.Position).Magnitude
-                                                local Ping = game:GetService("Stats").Network.ServerStatsItem["Data Ping"]:GetValue() / 10
-                                                local Ping_Threshold = math.clamp(Ping / 8, 4, 15)
                                                 local Speed = Velocity.Magnitude
+                                                local avgPing = (getgenv()._ZX_Tune and getgenv()._ZX_Tune.GetAveragePing()) or 0
+                                                local pingSec = avgPing / 2000
+                                                local pingStuds = avgPing / 10
+                                                local playerPos = Player.Character.PrimaryPart.Position
+                                                local ballPos = Ball.Position
+                                                local playerVel = Player.Character.PrimaryPart.AssemblyLinearVelocity
+                                                local Ball_Future_Position = ballPos + Velocity * pingSec
+                                                local Player_Future_Position = playerPos + playerVel * pingSec
+                                                local Distance = (Player_Future_Position - Ball_Future_Position).Magnitude
+                                                local Ping_Threshold = math.clamp(pingStuds / 8, 4, 15)
                                                 local cappedSpeedDiff = math.min(math.max(Speed - 9.5, 0), 650)
                                                 local speed_divisor_base = 2.4 + cappedSpeedDiff * 0.002
                                                 local effectiveMultiplier = Speed_Divisor_Multiplier
@@ -3996,8 +4058,14 @@ do
                                                                 effectiveMultiplier = 0.7 + (math.random(1, 100) - 1) * (0.35 / 99)
                                                         end
                                                 end
+                                                if HighPingCompensationEnabled and avgPing > HighPingCompThreshold then
+                                                        effectiveMultiplier = effectiveMultiplier * 1.5
+                                                end
                                                 local speed_divisor = speed_divisor_base * effectiveMultiplier
                                                 local Parry_Accuracy = Ping_Threshold + math.max(Speed / speed_divisor, 9.5)
+                                                if HighPingProtectionEnabled and avgPing > HighPingProtThreshold then
+                                                        Parry_Accuracy = Parry_Accuracy * 1.3
+                                                end
                                                 local Curved = Auto_Parry.Is_Curved()
                                                 if Ball:FindFirstChild("AeroDynamicSlashVFX") then
                                                         Debris:AddItem(Ball.AeroDynamicSlashVFX, 0)
@@ -4170,6 +4238,32 @@ do
                 flag = "Auto_Parry_Notify",
                 callback = function(value)
                         getgenv().AutoParryNotify = value
+                end,
+        })
+        module:create_checkbox({
+                title = "High Ping Compensation",
+                flag = "High_Ping_Compensation",
+                callback = function(value)
+                        HighPingCompensationEnabled = value
+                end,
+        })
+        module:create_checkbox({
+                title = "High Ping Protection",
+                flag = "High_Ping_Protection",
+                callback = function(value)
+                        HighPingProtectionEnabled = value
+                end,
+        })
+        module:create_slider({
+                title = "High Ping Threshold (ms)",
+                flag = "High_Ping_Threshold",
+                maximum_value = 300,
+                minimum_value = 50,
+                value = 150,
+                round_number = true,
+                callback = function(value)
+                        HighPingCompThreshold = value
+                        HighPingProtThreshold = math.max(value - 20, 50)
                 end,
         })
         module:create_checkbox({
@@ -4857,19 +4951,71 @@ local slashOfFuryDetectionModule = detec:create_module({
                                         end
                                         local Ball_Target = Ball:GetAttribute("target")
                                         local Velocity = Zoomies.VectorVelocity
-                                        local Distance = Player:DistanceFromCharacter(Ball.Position)
                                         local Speed = Velocity.Magnitude
-                                        local Ping = game:GetService("Stats").Network.ServerStatsItem["Data Ping"]:GetValue() / 10
+                                        local avgPing = (getgenv()._ZX_Tune and getgenv()._ZX_Tune.GetAveragePing()) or 0
+                                        local pingSec = avgPing / 2000
+                                        local pingStuds = avgPing / 10
+                                        local playerPos = Player.Character.PrimaryPart.Position
+                                        local ballPos = Ball.Position
+                                        local playerVel = Player.Character.PrimaryPart.AssemblyLinearVelocity
+                                        local Ball_Future_Position = ballPos + Velocity * pingSec
+                                        local Player_Future_Position = playerPos + playerVel * pingSec
+                                        local Distance = (Player_Future_Position - Ball_Future_Position).Magnitude
                                         local LobbyAPcappedSpeedDiff = math.min(math.max(Speed - 9.5, 0), 650)
                                         local LobbyAPspeed_divisor_base = 2.4 + LobbyAPcappedSpeedDiff * 0.002
                                         local LobbyAPeffectiveMultiplier = LobbyAP_Speed_Divisor_Multiplier
                                         if getgenv().LobbyAPRandomParryAccuracyEnabled then
                                                 LobbyAPeffectiveMultiplier = 0.7 + (math.random(1, 100) - 1) * (0.35 / 99)
                                         end
+                                        if HighPingCompensationEnabled and avgPing > HighPingCompThreshold then
+                                                LobbyAPeffectiveMultiplier = LobbyAPeffectiveMultiplier * 1.5
+                                        end
                                         local LobbyAPspeed_divisor = LobbyAPspeed_divisor_base * LobbyAPeffectiveMultiplier
-                                        local LobbyAPParry_Accuracys = Ping + math.max(Speed / LobbyAPspeed_divisor, 9.5)
+                                        local LobbyAPParry_Accuracys = pingStuds + math.max(Speed / LobbyAPspeed_divisor, 9.5)
+                                        if HighPingProtectionEnabled and avgPing > HighPingProtThreshold then
+                                                LobbyAPParry_Accuracys = LobbyAPParry_Accuracys * 1.3
+                                        end
+                                        local LobbyIsCurved = false
+                                        if Speed > 100 then
+                                                local ballDir = Velocity.Unit
+                                                local toPlayer = (playerPos - ballPos).Unit
+                                                local dot = ballDir:Dot(toPlayer)
+                                                if dot < -0.1 then
+                                                        LobbyIsCurved = true
+                                                end
+                                                if #Previous_Velocity >= 2 then
+                                                        local prevVel = Previous_Velocity[#Previous_Velocity]
+                                                        local prevDir = prevVel.Unit
+                                                        local dirChange = (ballDir - prevDir).Magnitude
+                                                        if dirChange > 0.05 then
+                                                                LobbyIsCurved = true
+                                                        end
+                                                end
+                                        end
+                                        table.insert(Previous_Velocity, Velocity)
+                                        if #Previous_Velocity > 4 then
+                                                table.remove(Previous_Velocity, 1)
+                                        end
+                                        if LobbyIsCurved then
+                                                local curveReduction = 38
+                                                if Speed > 600 then curveReduction = 58
+                                                elseif Speed > 300 then curveReduction = 48 end
+                                                LobbyAPParry_Accuracys = math.max(LobbyAPParry_Accuracys - curveReduction, 5)
+                                        end
+                                        if Speed > 50 then
+                                                local Approach_Dot = (playerPos - ballPos).Unit:Dot(Velocity.Unit)
+                                                if Approach_Dot < -0.3 then
+                                                        return
+                                                end
+                                        end
                                         if Ball_Target == tostring(Player) and Distance <= LobbyAPParry_Accuracys then
+                                                local Parry_Time = os.clock()
+                                                local Time_View = Parry_Time - Last_Parry
+                                                if Time_View > 0.4 then
+                                                        Auto_Parry.Parry_Animation()
+                                                end
                                                 Auto_Parry.Parry(Selected_Parry_Type)
+                                                Last_Parry = Parry_Time
                                                 Training_Parried = true
                                         end
                                         local Last_Parrys = tick()
