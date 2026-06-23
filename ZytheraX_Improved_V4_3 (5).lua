@@ -2962,10 +2962,6 @@ local Previous_Positions = {}
 local parryCooldown = 0.0
 local lastParryTime = 0
 
-local HighPingCompensationEnabled = true
-local HighPingProtectionEnabled = true
-local HighPingCompThreshold = 150
-local HighPingProtThreshold = 130
 local PingHistory = {}
 local MaxPingHistory = 5
 local PingAvg = 0
@@ -4058,13 +4054,14 @@ do
                                                                 effectiveMultiplier = 0.7 + (math.random(1, 100) - 1) * (0.35 / 99)
                                                         end
                                                 end
-                                                if HighPingCompensationEnabled and avgPing > HighPingCompThreshold then
-                                                        effectiveMultiplier = effectiveMultiplier * 1.5
-                                                end
-                                                local speed_divisor = speed_divisor_base * effectiveMultiplier
-                                                local Parry_Accuracy = Ping_Threshold + math.max(Speed / speed_divisor, 9.5)
-                                                if HighPingProtectionEnabled and avgPing > HighPingProtThreshold then
-                                                        Parry_Accuracy = Parry_Accuracy * 1.3
+                                                local pingFactor = math.clamp(avgPing / 100, 0, 3.0)
+                                                local pingDivisorAdjust = math.max(1.0 - 0.18 * pingFactor, 0.4)
+                                                local speed_divisor = speed_divisor_base * effectiveMultiplier * pingDivisorAdjust
+                                                local pingExtraStuds = pingFactor * 4
+                                                local Parry_Accuracy = Ping_Threshold + math.max(Speed / speed_divisor, 9.5) + pingExtraStuds
+                                                if avgPing > 200 then
+                                                        local safetyMult = 1.0 + math.min((avgPing - 200) / 400, 0.5)
+                                                        Parry_Accuracy = Parry_Accuracy * safetyMult
                                                 end
                                                 local Curved = Auto_Parry.Is_Curved()
                                                 if Ball:FindFirstChild("AeroDynamicSlashVFX") then
@@ -4238,32 +4235,6 @@ do
                 flag = "Auto_Parry_Notify",
                 callback = function(value)
                         getgenv().AutoParryNotify = value
-                end,
-        })
-        module:create_checkbox({
-                title = "High Ping Compensation",
-                flag = "High_Ping_Compensation",
-                callback = function(value)
-                        HighPingCompensationEnabled = value
-                end,
-        })
-        module:create_checkbox({
-                title = "High Ping Protection",
-                flag = "High_Ping_Protection",
-                callback = function(value)
-                        HighPingProtectionEnabled = value
-                end,
-        })
-        module:create_slider({
-                title = "High Ping Threshold (ms)",
-                flag = "High_Ping_Threshold",
-                maximum_value = 300,
-                minimum_value = 50,
-                value = 150,
-                round_number = true,
-                callback = function(value)
-                        HighPingCompThreshold = value
-                        HighPingProtThreshold = math.max(value - 20, 50)
                 end,
         })
         module:create_checkbox({
@@ -4967,13 +4938,14 @@ local slashOfFuryDetectionModule = detec:create_module({
                                         if getgenv().LobbyAPRandomParryAccuracyEnabled then
                                                 LobbyAPeffectiveMultiplier = 0.7 + (math.random(1, 100) - 1) * (0.35 / 99)
                                         end
-                                        if HighPingCompensationEnabled and avgPing > HighPingCompThreshold then
-                                                LobbyAPeffectiveMultiplier = LobbyAPeffectiveMultiplier * 1.5
-                                        end
-                                        local LobbyAPspeed_divisor = LobbyAPspeed_divisor_base * LobbyAPeffectiveMultiplier
-                                        local LobbyAPParry_Accuracys = pingStuds + math.max(Speed / LobbyAPspeed_divisor, 9.5)
-                                        if HighPingProtectionEnabled and avgPing > HighPingProtThreshold then
-                                                LobbyAPParry_Accuracys = LobbyAPParry_Accuracys * 1.3
+                                        local pingFactor = math.clamp(avgPing / 100, 0, 3.0)
+                                        local pingDivisorAdjust = math.max(1.0 - 0.18 * pingFactor, 0.4)
+                                        local LobbyAPspeed_divisor = LobbyAPspeed_divisor_base * LobbyAPeffectiveMultiplier * pingDivisorAdjust
+                                        local pingExtraStuds = pingFactor * 4
+                                        local LobbyAPParry_Accuracys = pingStuds + math.max(Speed / LobbyAPspeed_divisor, 9.5) + pingExtraStuds
+                                        if avgPing > 200 then
+                                                local safetyMult = 1.0 + math.min((avgPing - 200) / 400, 0.5)
+                                                LobbyAPParry_Accuracys = LobbyAPParry_Accuracys * safetyMult
                                         end
                                         local LobbyIsCurved = false
                                         if Speed > 100 then
