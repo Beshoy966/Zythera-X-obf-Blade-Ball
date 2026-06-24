@@ -4043,7 +4043,7 @@ do
                                                 local Ball_Future_Position = ballPos + Velocity * pingSec
                                                 local Player_Future_Position = playerPos + playerVel * pingSec
                                                 local Distance = (Player_Future_Position - Ball_Future_Position).Magnitude
-                                                local Ping_Threshold = math.clamp(pingStuds / 8, 4, 15)
+                                                local Ping_Threshold = math.clamp(pingStuds / 8, 4, 25)
                                                 local cappedSpeedDiff = math.min(math.max(Speed - 9.5, 0), 650)
                                                 local speed_divisor_base = 2.4 + cappedSpeedDiff * 0.002
                                                 local effectiveMultiplier = Speed_Divisor_Multiplier
@@ -4054,13 +4054,17 @@ do
                                                                 effectiveMultiplier = 0.7 + (math.random(1, 100) - 1) * (0.35 / 99)
                                                         end
                                                 end
-                                                local pingFactor = math.clamp(avgPing / 100, 0, 3.0)
-                                                local pingDivisorAdjust = math.max(1.0 - 0.18 * pingFactor, 0.4)
+                                                local pingFactor = math.clamp(avgPing / 100, 0, 3.5)
+                                                local pingDivisorAdjust = math.max(1.0 - 0.20 * pingFactor, 0.35)
                                                 local speed_divisor = speed_divisor_base * effectiveMultiplier * pingDivisorAdjust
-                                                local pingExtraStuds = pingFactor * 4
-                                                local Parry_Accuracy = Ping_Threshold + math.max(Speed / speed_divisor, 9.5) + pingExtraStuds
-                                                if avgPing > 200 then
-                                                        local safetyMult = 1.0 + math.min((avgPing - 200) / 400, 0.5)
+                                                local pingExtraStuds = pingFactor * 5
+                                                local speedFactor = 1.0
+                                                if Speed > 200 then
+                                                        speedFactor = 1.0 + math.min((Speed - 200) / 1000, 0.3)
+                                                end
+                                                local Parry_Accuracy = Ping_Threshold + math.max(Speed / speed_divisor, 9.5) * speedFactor + pingExtraStuds
+                                                if avgPing > 180 then
+                                                        local safetyMult = 1.0 + math.min((avgPing - 180) / 350, 0.6)
                                                         Parry_Accuracy = Parry_Accuracy * safetyMult
                                                 end
                                                 local Curved = Auto_Parry.Is_Curved()
@@ -4938,13 +4942,17 @@ local slashOfFuryDetectionModule = detec:create_module({
                                         if getgenv().LobbyAPRandomParryAccuracyEnabled then
                                                 LobbyAPeffectiveMultiplier = 0.7 + (math.random(1, 100) - 1) * (0.35 / 99)
                                         end
-                                        local pingFactor = math.clamp(avgPing / 100, 0, 3.0)
-                                        local pingDivisorAdjust = math.max(1.0 - 0.18 * pingFactor, 0.4)
+                                        local pingFactor = math.clamp(avgPing / 100, 0, 3.5)
+                                        local pingDivisorAdjust = math.max(1.0 - 0.20 * pingFactor, 0.35)
                                         local LobbyAPspeed_divisor = LobbyAPspeed_divisor_base * LobbyAPeffectiveMultiplier * pingDivisorAdjust
-                                        local pingExtraStuds = pingFactor * 4
-                                        local LobbyAPParry_Accuracys = pingStuds + math.max(Speed / LobbyAPspeed_divisor, 9.5) + pingExtraStuds
-                                        if avgPing > 200 then
-                                                local safetyMult = 1.0 + math.min((avgPing - 200) / 400, 0.5)
+                                        local pingExtraStuds = pingFactor * 5
+                                        local speedFactor = 1.0
+                                        if Speed > 200 then
+                                                speedFactor = 1.0 + math.min((Speed - 200) / 1000, 0.3)
+                                        end
+                                        local LobbyAPParry_Accuracys = pingStuds + math.max(Speed / LobbyAPspeed_divisor, 9.5) * speedFactor + pingExtraStuds
+                                        if avgPing > 180 then
+                                                local safetyMult = 1.0 + math.min((avgPing - 180) / 350, 0.6)
                                                 LobbyAPParry_Accuracys = LobbyAPParry_Accuracys * safetyMult
                                         end
                                         local LobbyIsCurved = false
