@@ -495,6 +495,11 @@ local Library = {
     _choosing_keybind = false,
     _device = nil,
 
+    -- ALWAYS start with UI open. Previously this could be saved as false
+    -- from a previous session, causing the UI to be hidden on launch.
+    -- Forcing it to true ensures the UI always shows when the script
+    -- loads, which is important for mobile users who can't easily
+    -- press RightControl to toggle it.
     _ui_open = true,
     _ui_scale = 1,
     _ui_loaded = false,
@@ -1045,6 +1050,25 @@ function Library:create_ui()
                 self:get_screen_scale()
                 UIScale.Scale = self._ui_scale
             end)
+        end
+
+        -- FORCE the UI to be open on load. This overrides any saved
+        -- state so the UI always shows when the script runs. Important
+        -- for mobile users who can't press RightControl to toggle.
+        self._ui_open = true
+
+        -- Show the full-size UI (not the minimized brand bar)
+        if Handler:FindFirstChild('BrandBar') then
+            local bb = Handler.BrandBar
+            bb.AnchorPoint = Vector2.new(0, 0)
+            TweenService:Create(bb, TweenInfo.new(0.4, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
+                Position = UDim2.new(0.056, 0, 0.055, 0)
+            }):Play()
+            if bb:FindFirstChild('ClientName') then
+                TweenService:Create(bb.ClientName, TweenInfo.new(0.3, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
+                    TextTransparency = 0
+                }):Play()
+            end
         end
 
         TweenService:Create(Container, TweenInfo.new(0.5, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
